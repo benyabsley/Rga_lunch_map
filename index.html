@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>R/GA Lunch Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#f5f3ef;--surface:#fff;--border:rgba(0,0,0,0.10);--text:#1a1a18;--muted:#888884;--red:#E51837}
+html,body{font-family:"DM Sans",sans-serif;background:var(--bg);color:var(--text);height:100%;overflow:hidden}
+body{display:flex;flex-direction:column}
+#city-tabs{display:flex;align-items:stretch;background:#1a1a18;flex-shrink:0;height:48px}
+.city-tab{font-family:"DM Sans",sans-serif;font-size:13px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;padding:0 28px;border:none;background:transparent;color:rgba(255,255,255,0.38);cursor:pointer;transition:all 0.15s;white-space:nowrap;position:relative;display:flex;align-items:center;gap:8px}
+.city-tab:hover{color:rgba(255,255,255,0.8);background:rgba(255,255,255,0.05)}
+.city-tab.active{color:#fff;background:var(--red)}
+.city-tab-divider{width:1px;background:rgba(255,255,255,0.12);margin:10px 0;flex-shrink:0}
+header{flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:stretch;min-height:52px}
+.header-left{display:flex;align-items:center;gap:16px;border-right:1px solid var(--border);padding-right:20px;flex-shrink:0}
+.header-title{font-size:12px;font-weight:400;color:var(--muted);white-space:nowrap}
+.header-title em{font-style:italic;color:var(--text)}
+#filter-bar{display:flex;align-items:stretch;flex:1;overflow-x:auto;scrollbar-width:none}
+#filter-bar::-webkit-scrollbar{display:none}
+.filter-btn{font-family:"DM Sans",sans-serif;font-size:11px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;padding:0 15px;border:none;border-right:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:background 0.1s,color 0.1s;display:flex;align-items:center;gap:7px;white-space:nowrap}
+.filter-btn:hover{background:var(--bg);color:var(--text)}
+.filter-btn.active{background:var(--text);color:#fff}
+.filter-btn.active .dot{opacity:0.55}
+.filter-btn .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.header-right{display:flex;align-items:center;padding-left:20px;border-left:1px solid var(--border);flex-shrink:0}
+#spot-count{font-family:"DM Mono",monospace;font-size:11px;color:var(--muted);white-space:nowrap;letter-spacing:0.04em}
+#map{flex:1;min-height:0}
+.leaflet-popup-content-wrapper{padding:0!important;border-radius:0!important;border:1px solid rgba(0,0,0,0.13)!important;box-shadow:0 10px 36px rgba(0,0,0,0.13)!important;overflow:hidden}
+.leaflet-popup-content{margin:0!important;line-height:1!important}
+.leaflet-popup-tip-container{display:none}
+.leaflet-popup-close-button{top:11px!important;right:13px!important;font-size:16px!important;color:var(--muted)!important;width:20px!important;height:20px!important;line-height:18px!important;z-index:10}
+.leaflet-control-zoom{border:1px solid var(--border)!important;border-radius:0!important;box-shadow:none!important;overflow:hidden}
+.leaflet-control-zoom a{background:var(--surface)!important;color:var(--text)!important;border-bottom-color:var(--border)!important;font-size:16px!important;font-weight:300!important;border-radius:0!important;width:32px!important;height:32px!important;line-height:30px!important}
+.leaflet-control-zoom a:hover{background:var(--bg)!important}
+.leaflet-control-attribution{font-family:"DM Mono",monospace!important;font-size:9px!important;background:rgba(245,243,239,0.85)!important;border-radius:0!important;color:var(--muted)!important}
+.popup-inner{font-family:"DM Sans",sans-serif;min-width:240px;max-width:300px;background:var(--surface)}
+.popup-header{padding:13px 16px 11px;border-bottom:1px solid rgba(0,0,0,0.07)}
+.popup-name{font-size:13px;font-weight:500;color:var(--text);padding-right:18px;line-height:1.3;margin-bottom:3px}
+.popup-address{font-family:"DM Mono",monospace;font-size:9px;color:var(--muted);line-height:1.5;letter-spacing:0.03em;text-transform:uppercase;margin-bottom:7px}
+.popup-maps-link{display:inline-flex;align-items:center;gap:4px;font-family:"DM Mono",monospace;font-size:9px;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;text-decoration:none;color:var(--text);border-bottom:1px solid var(--text);padding-bottom:1px;transition:opacity 0.12s}
+.popup-maps-link:hover{opacity:0.45}
+.popup-recs{padding:10px 16px 13px;display:flex;flex-direction:column;gap:9px}
+.rec-row{display:flex;align-items:flex-start;gap:10px}
+.rec-avatar{width:26px;height:26px;min-width:26px;display:flex;align-items:center;justify-content:center;font-family:"DM Mono",monospace;font-size:8px;font-weight:500;letter-spacing:0.03em;margin-top:2px;flex-shrink:0}
+.rec-info{display:flex;flex-direction:column;gap:2px}
+.rec-who{font-size:11.5px;font-weight:500;color:var(--text)}
+.rec-dish{font-size:11px;color:var(--muted);font-style:italic;line-height:1.4}
+.popup-office{display:flex;align-items:center;gap:12px;padding:13px 36px 13px 16px}
+.office-sq{width:30px;height:30px;min-width:30px;background:#1a1a18;display:flex;align-items:center;justify-content:center}
+.popup-office-text .popup-name{padding-right:0}
+</style>
+</head>
+<body>
+<div id="city-tabs">
+  <button class="city-tab active" onclick="switchCity('sydney',this)">Sydney</button>
+  <div class="city-tab-divider"></div>
+  <button class="city-tab" onclick="switchCity('melbourne',this)">Melbourne</button>
+  <div class="city-tab-divider"></div>
+  <button class="city-tab" onclick="switchCity('indonesia',this)">Indonesia</button>
+</div>
+<header>
+  <div class="header-left">
+    <svg xmlns="http://www.w3.org/2000/svg" height="26" viewBox="0 0 188 44" fill="none" aria-label="R/GA" style="flex-shrink:0"><rect x="0" y="2" width="40" height="40" fill="#E51837"/><text x="50" y="38" font-family="Helvetica Neue,Helvetica,Arial,sans-serif" font-weight="700" font-size="40" fill="#111111" letter-spacing="0">R/GA</text></svg>
+    <span class="header-title">Lunch Map &mdash; <em id="city-label">Surry Hills</em></span>
+  </div>
+  <div id="filter-bar"></div>
+  <div class="header-right"><span id="spot-count">0 spots</span></div>
+</header>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ── Colour palettes ───────────────────────────────────────────────────────────
+const CUISINE_COLORS = {
+  Chicken:    '#E8873A',  // grilled orange
+  Sandwiches: '#7A4A20',  // dark satay brown
+  Japanese:   '#D65B8A',  // salmon/tuna pink-red
+  Asian:      '#C45E30',  // wok-charred terracotta
+  Noodles:    '#D4A020',  // rich golden broth amber
+  Mexican:    '#4AAB5A',  // guacamole green
+  Bakery:     '#C8A06A',  // wheat/dough tan
+  Pizza:      '#CC3020',  // tomato red
+  Seafood:    '#2A7FC0',  // ocean blue
+  Indonesian: '#7BB5E8',  // sky blue
+};
+
+const PERSON_COLORS = {
+  'Ben Yabsley':'#E87D53','Courtney Fay':'#5B8FD6','Kate Ross':'#3DB88E',
+  'Seb Leat':'#9B6DD6','Chris Smyth':'#E8B84B','James Miller':'#D65B8A',
+  'Jane Duru':'#4AABBA','Lauren Gordon':'#A3B84B','Alex Morris':'#B87A3D',
+  'Natalie Lipton':'#7B68EE','Leila Khoshoie':'#20B2AA',
+  'Jefri Zhang':'#FF7F50','Zakia Rahmasanti Karyono':'#DA70D6',
+  'Natasha Jane Marsela':'#87CEEB','Nana':'#98FB98',
+};
+const INITIALS = {
+  'Ben Yabsley':'BY','Courtney Fay':'CF','Kate Ross':'KR','Seb Leat':'SL',
+  'Chris Smyth':'CS','James Miller':'JM','Jane Duru':'JD','Lauren Gordon':'LG',
+  'Alex Morris':'AM','Natalie Lipton':'NL','Leila Khoshoie':'LK',
+  'Jefri Zhang':'JZ','Zakia Rahmasanti Karyono':'ZR','Natasha Jane Marsela':'NM','Nana':'NA',
+};
+
+// ── Spot data ─────────────────────────────────────────────────────────────────
+const SPOTS = {
+  sydney: [
+    {name:"Camy's Chargrill Chicken",      address:"14 Foveaux St, Surry Hills NSW 2010",                  cuisine:"Chicken",    lat:-33.8836529,lng:151.2095829,maps:"https://maps.google.com/?q=14+Foveaux+St+Surry+Hills+NSW+2010",                recs:[{who:"Ben Yabsley",  dish:"Classic chicken wrap"}]},
+    {name:"Henrietta's Charcoal Chicken",  address:"Shop 1/500 Crown St, Surry Hills NSW 2010",            cuisine:"Chicken",    lat:-33.8870170,lng:151.2137613,maps:"https://maps.google.com/?q=500+Crown+St+Surry+Hills+NSW+2010",                recs:[{who:"Seb Leat",     dish:"Charcoal Chicken"}]},
+    {name:"Butter Sydney",                 address:"6 Hunt St, Surry Hills NSW 2010",                      cuisine:"Chicken",    lat:-33.8791599,lng:151.2106652,maps:"https://maps.google.com/?q=6+Hunt+St+Surry+Hills+NSW+2010",                    recs:[{who:"Seb Leat",     dish:"Fried Chicken"}]},
+    {name:"South Dowling Sandwiches",      address:"377 South Dowling St, Darlinghurst NSW 2010",          cuisine:"Sandwiches", lat:-33.8831494,lng:151.2184017,maps:"https://maps.google.com/?q=377+South+Dowling+St+Darlinghurst+NSW+2010",       recs:[{who:"Seb Leat",     dish:"The Hugo / The original big sandwich"}]},
+    {name:"City Edge Cafe",                address:"Shop 2/55 Holt St, Surry Hills NSW 2010",              cuisine:"Sandwiches", lat:-33.8862328,lng:151.2090603,maps:"https://maps.google.com/?q=55+Holt+St+Surry+Hills+NSW+2010",                   recs:[{who:"Seb Leat",     dish:"Sandwiches"}]},
+    {name:"Reuben Hills",                  address:"61 Albion St, Surry Hills NSW 2010",                   cuisine:"Sandwiches", lat:-33.8828778,lng:151.2110278,maps:"https://maps.google.com/?q=61+Albion+St+Surry+Hills+NSW+2010",                 recs:[{who:"Seb Leat",dish:"The Reuben Sandwich"},{who:"Lauren Gordon",dish:"Vege Bowl with Chicken / Toast — Chicken & Avo Wrap"}]},
+    {name:"MLK Deli",                      address:"168 Campbell St, Surry Hills NSW 2010",                cuisine:"Sandwiches", lat:-33.8805442,lng:151.2141063,maps:"https://maps.google.com/?q=168+Campbell+St+Surry+Hills+NSW+2010",              recs:[{who:"Kate Ross",dish:"The MLK"},{who:"Seb Leat",dish:"Deli-style sandwiches"}]},
+    {name:"Sandoitchi",                    address:"Shop 3/113-115 Oxford St, Darlinghurst NSW 2010",      cuisine:"Sandwiches", lat:-33.8792515,lng:151.2149743,maps:"https://maps.google.com/?q=113+Oxford+St+Darlinghurst+NSW+2010",               recs:[{who:"Seb Leat",     dish:"Japanese sandwiches"}]},
+    {name:"Mishy's",                       address:"113 Reservoir St, Surry Hills NSW 2010",               cuisine:"Sandwiches", lat:-33.8814853,lng:151.2124241,maps:"https://maps.google.com/?q=113+Reservoir+St+Surry+Hills+NSW+2010",             recs:[{who:"James Miller",dish:"Chicken Sambo"},{who:"Jane Duru",dish:"Go-to for sandwiches"}]},
+    {name:"Marrickville Pork Roll",        address:"7 Loftus Ln, Sydney NSW 2000",                         cuisine:"Sandwiches", lat:-33.8626334,lng:151.2107989,maps:"https://maps.google.com/?q=7+Loftus+Ln+Sydney+NSW+2000",                       recs:[{who:"Seb Leat",     dish:"Pork Rolls"}]},
+    {name:"Newtown Pork Roll",             address:"Shop 6A/280 Elizabeth St, Surry Hills NSW 2010",       cuisine:"Sandwiches", lat:-33.8823608,lng:151.2094226,maps:"https://maps.google.com/?q=280+Elizabeth+St+Surry+Hills+NSW+2010",             recs:[{who:"Jane Duru",    dish:"Pork crackling and vermicelli salad"}]},
+    {name:"Don Don",                       address:"Unit 76/80 Oxford St, Darlinghurst NSW 2010",          cuisine:"Japanese",   lat:-33.8788796,lng:151.2151595,maps:"https://maps.google.com/?q=80+Oxford+St+Darlinghurst+NSW+2010",                recs:[{who:"Seb Leat",dish:"Udon Noodles"},{who:"Chris Smyth",dish:"Chicken Oyako Don, Salmon Handroll"}]},
+    {name:"Gogyo",                         address:"52-54 Albion St, Surry Hills NSW 2010",                cuisine:"Japanese",   lat:-33.8822961,lng:151.2103281,maps:"https://maps.google.com/?q=52+Albion+St+Surry+Hills+NSW+2010",                 recs:[{who:"Seb Leat",     dish:"Ramen"}]},
+    {name:"Suzuya",                        address:"210 Devonshire St, Surry Hills NSW 2010",              cuisine:"Japanese",   lat:-33.8877114,lng:151.2114646,maps:"https://maps.google.com/?q=210+Devonshire+St+Surry+Hills+NSW+2010",            recs:[{who:"Seb Leat",     dish:"Japanese set menu lunch"}]},
+    {name:"Parami",                        address:"Shop 101/21 Alberta St, Sydney NSW 2000",              cuisine:"Japanese",   lat:-33.8778986,lng:151.2106101,maps:"https://maps.google.com/?q=21+Alberta+St+Sydney+NSW+2000",                     recs:[{who:"Seb Leat",     dish:"Onigiri & Japanese treats"}]},
+    {name:"Madam Nhu",                     address:"82 Campbell St, Surry Hills NSW 2010",                 cuisine:"Asian",      lat:-33.8800950,lng:151.2100550,maps:"https://maps.google.com/?q=82+Campbell+St+Surry+Hills+NSW+2010",               recs:[{who:"Courtney Fay",dish:"Hainan chicken rice"},{who:"Alex Morris",dish:"Chicken rice set (aka the Louis special)"}]},
+    {name:"Haak Eatery",                   address:"Shop 3/54-58 Foveaux St, Surry Hills NSW 2010",        cuisine:"Asian",      lat:-33.8843147,lng:151.2108542,maps:"https://maps.google.com/?q=54+Foveaux+St+Surry+Hills+NSW+2010",                recs:[{who:"Seb Leat",     dish:"Korean rice bowls"}]},
+    {name:"Shift Eatery",                  address:"4/241 Commonwealth St, Surry Hills NSW 2010",          cuisine:"Asian",      lat:-33.8836880,lng:151.2096165,maps:"https://maps.google.com/?q=241+Commonwealth+St+Surry+Hills+NSW+2010",          recs:[{who:"Seb Leat",     dish:"Vegan deli"}]},
+    {name:"Spice I Am",                    address:"90 Wentworth Ave, Surry Hills NSW 2010",               cuisine:"Asian",      lat:-33.8797291,lng:151.2095582,maps:"https://maps.google.com/?q=90+Wentworth+Ave+Surry+Hills+NSW+2010",             recs:[{who:"Seb Leat",     dish:"Thai takeaway"}]},
+    {name:"Ho Jiak",                       address:"92 Hay St, Haymarket NSW 2000",                        cuisine:"Asian",      lat:-33.8792386,lng:151.2036662,maps:"https://maps.google.com/?q=92+Hay+St+Haymarket+NSW+2000",                      recs:[{who:"Seb Leat",     dish:"Malaysian street food"}]},
+    {name:"Ama",                           address:"Shop 1/47 Cooper St, Surry Hills NSW 2010",            cuisine:"Asian",      lat:-33.8858460,lng:151.2097047,maps:"https://maps.google.com/?q=47+Cooper+St+Surry+Hills+NSW+2010",                 recs:[{who:"Kate Ross",    dish:"Ama's beef noodle soup"}]},
+    {name:"Happy Chef",                    address:"F3/401 Sussex St, Haymarket NSW 2000",                 cuisine:"Noodles",    lat:-33.8782269,lng:151.2044910,maps:"https://maps.google.com/?q=401+Sussex+St+Haymarket+NSW+2000",                  recs:[{who:"Seb Leat",     dish:"Chinese Noodle Soup & Cantonese"}]},
+    {name:"Golden Century BBQ",            address:"Ground Floor/1 Little Pier St, Haymarket NSW 2000",    cuisine:"Noodles",    lat:-33.8779554,lng:151.2022088,maps:"https://maps.google.com/?q=1+Little+Pier+St+Haymarket+NSW+2000",               recs:[{who:"Seb Leat",     dish:"2 choices with rice / noodles"}]},
+    {name:"Lee's Dumplings",               address:"694 George St, Haymarket NSW 2000",                    cuisine:"Noodles",    lat:-33.8780020,lng:151.2058749,maps:"https://maps.google.com/?q=694+George+St+Haymarket+NSW+2000",                  recs:[{who:"Seb Leat",     dish:"Xiao Long Bao"}]},
+    {name:"Surry Hills Dumplings by Baba Wu",address:"230 Elizabeth St, Surry Hills NSW 2010",            cuisine:"Noodles",    lat:-33.8808242,lng:151.2089556,maps:"https://maps.google.com/?q=230+Elizabeth+St+Surry+Hills+NSW+2010",             recs:[{who:"Jane Duru",    dish:"Dumplings"}]},
+    {name:"Papi's Birria Tacos",           address:"147 Oxford St, Darlinghurst NSW 2010",                 cuisine:"Mexican",    lat:-33.8799843,lng:151.2158548,maps:"https://maps.google.com/?q=147+Oxford+St+Darlinghurst+NSW+2010",               recs:[{who:"Seb Leat",     dish:"Tacos"}]},
+    {name:"Elf & Taco",                    address:"67 Reservoir St, Surry Hills NSW 2010",                cuisine:"Mexican",    lat:-33.8813530,lng:151.2107643,maps:"https://maps.google.com/?q=67+Reservoir+St+Surry+Hills+NSW+2010",              recs:[{who:"Seb Leat",     dish:"Mexican"}]},
+    {name:"Humble Bakery",                 address:"Shop 2/50 Holt St, Surry Hills NSW 2010",              cuisine:"Bakery",     lat:-33.8863238,lng:151.2095700,maps:"https://maps.google.com/?q=50+Holt+St+Surry+Hills+NSW+2010",                   recs:[{who:"Seb Leat",     dish:"Finger Buns & Sandwiches"}]},
+    {name:"A.P Supply",                    address:"Shop 2/106-112 Commonwealth St, Surry Hills NSW 2010", cuisine:"Bakery",     lat:-33.8805370,lng:151.2110859,maps:"https://maps.google.com/?q=106+Commonwealth+St+Surry+Hills+NSW+2010",           recs:[{who:"Seb Leat",     dish:"Takeaway pastries and sandwiches"}]},
+    {name:"Relish Food Co",                address:"45 Albion St, Surry Hills NSW 2010",                   cuisine:"Bakery",     lat:-33.8826294,lng:151.2104674,maps:"https://maps.google.com/?q=45+Albion+St+Surry+Hills+NSW+2010",                 recs:[{who:"Jane Duru",dish:"A fancy lunch"},{who:"Lauren Gordon",dish:"Chicken Salad"}]},
+    {name:"A.P House (Rooftop Bakery)",    address:"L2/80 Commonwealth St, Surry Hills NSW 2010",          cuisine:"Bakery",     lat:-33.8793612,lng:151.2110565,maps:"https://maps.google.com/?q=80+Commonwealth+St+Surry+Hills+NSW+2010",            recs:[{who:"Courtney Fay",dish:"Ham and cheese baguette"},{who:"Seb Leat",dish:"Spicy Chicken Sandwich"},{who:"Jane Duru",dish:"AP Bakery for a fancy lunch"}]},
+    {name:"APizza",                        address:"191-195 Oxford St, Darlinghurst NSW 2010",             cuisine:"Pizza",      lat:-33.8809702,lng:151.2172523,maps:"https://maps.google.com/?q=191+Oxford+St+Darlinghurst+NSW+2010",               recs:[{who:"Seb Leat",     dish:"NYC pizza by the slice"}]},
+  ],
+  melbourne: [
+    {name:"Sloane Ranger",      address:"13 Cremorne St, Cremorne VIC 3121",             cuisine:"Bakery",     lat:-37.8257480,lng:144.9912070,maps:"https://maps.google.com/?q=13+Cremorne+St+Cremorne+VIC+3121",           recs:[{who:"Natalie Lipton",dish:"Superfood salad"}]},
+    {name:"Suupaa",             address:"Shop 1/65 Dover St, Cremorne VIC 3121",         cuisine:"Japanese",   lat:-37.8273340,lng:144.9920779,maps:"https://maps.google.com/?q=65+Dover+St+Cremorne+VIC+3121",             recs:[{who:"Leila Khoshoie",dish:"Garlic tan tan noodles, hojicha latte"},{who:"Natalie Lipton",dish:"Ramen"}]},
+    {name:"Baker Bleu",         address:"65 Dover St, Cremorne VIC 3121",                cuisine:"Bakery",     lat:-37.8275318,lng:144.9919518,maps:"https://maps.google.com/?q=65+Dover+St+Cremorne+VIC+3121",             recs:[{who:"Leila Khoshoie",dish:"Tuna toastie slaps"},{who:"Natalie Lipton",dish:"Bread"}]},
+    {name:"FISHBOWL Richmond",  address:"89A Swan St, Richmond VIC 3121",                cuisine:"Asian",      lat:-37.8251010,lng:144.9938926,maps:"https://maps.google.com/?q=89A+Swan+St+Richmond+VIC+3121",             recs:[{who:"Leila Khoshoie",dish:"Miso salmon or roasted tofu street box"}]},
+    {name:"Hugo's Deli",        address:"119 Swan St, Richmond VIC 3121",                cuisine:"Sandwiches", lat:-37.8252120,lng:144.9951760,maps:"https://maps.google.com/?q=119+Swan+St+Richmond+VIC+3121",             recs:[{who:"Leila Khoshoie",dish:"Vegan fried mushroom sanga"}]},
+    {name:"T&L Bakery & Cafe",  address:"174 Swan St, Cremorne VIC 3121",                cuisine:"Sandwiches", lat:-37.8256150,lng:144.9955970,maps:"https://maps.google.com/?q=174+Swan+St+Cremorne+VIC+3121",             recs:[{who:"Leila Khoshoie",dish:"Tofu summer rolls or tofu banh mi"},{who:"Natalie Lipton",dish:"Banh Mi"}]},
+    {name:"United Sushi",       address:"186 Swan St, Cremorne VIC 3121",                cuisine:"Japanese",   lat:-37.8256218,lng:144.9958256,maps:"https://maps.google.com/?q=186+Swan+St+Cremorne+VIC+3121",             recs:[{who:"Leila Khoshoie",dish:"Sushi"}]},
+    {name:"Kokoro Japanese Sushi",address:"204 Swan St, Cremorne VIC 3121",              cuisine:"Japanese",   lat:-37.8256724,lng:144.9963449,maps:"https://maps.google.com/?q=204+Swan+St+Cremorne+VIC+3121",             recs:[{who:"Leila Khoshoie",dish:"Japanese sushi"}]},
+    {name:"Lady T",             address:"104 Swan St, Cremorne VIC 3121",                cuisine:"Mexican",    lat:-37.8253650,lng:144.9933700,maps:"https://maps.google.com/?q=104+Swan+St+Cremorne+VIC+3121",             recs:[{who:"Natalie Lipton",dish:"Taco Tuesdays"}]},
+  ],
+  indonesia: [
+    {name:"Renuin",                       address:"Nagoya Hill Mall Lt2, Lubuk Baja, Batam, Kepulauan Riau",          cuisine:"Indonesian", lat:1.1457753, lng:104.0125251,maps:"https://maps.google.com/?q=Renuin+Nagoya+Hill+Batam",                              recs:[{who:"Jefri Zhang",    dish:"Promo set, fried chicken with sour soup and sweet ice tea"}]},
+    {name:"Ikan Bakar Pondok Ciung",      address:"Komplek Ruko Golden City Blok C No.9, Bengkong, Batam",            cuisine:"Seafood",    lat:1.1638361, lng:104.0392138,maps:"https://maps.google.com/?q=Ikan+Bakar+Pondok+Ciung+Bengkong+Batam",                recs:[{who:"Jefri Zhang",    dish:"Ikan pari bakar — grilled sting ray"}]},
+    {name:"Restaurant Liang Kee 888",     address:"Komplek Paradise Centre Blk. I No.1-3, Lubuk Baja, Batam",        cuisine:"Noodles",    lat:1.1407981, lng:104.0043011,maps:"https://maps.google.com/?q=Liang+Kee+888+Paradise+Centre+Batam",                    recs:[{who:"Jefri Zhang",    dish:"粿条汤 flat rice noodle soup"}]},
+    {name:"Abun Chamie Selatpanjang",     address:"Ruko Cahaya Garden Blok AC No.39, Sadai, Bengkong, Batam",         cuisine:"Noodles",    lat:1.1452102, lng:104.0373553,maps:"https://maps.google.com/?q=Abun+Chamie+Bengkong+Batam",                            recs:[{who:"Jefri Zhang",    dish:"Mie sagu lembab"}]},
+    {name:"Mei Wei Shi Jia 美味世家",     address:"Sahid Batam Centre Hotel, Jl. Raja H. Fisabilillah, Batam",        cuisine:"Noodles",    lat:1.1326330, lng:104.0404519,maps:"https://maps.google.com/?q=Mei+Wei+Shi+Jia+Sahid+Batam+Centre",                   recs:[{who:"Jefri Zhang",    dish:"Frog leg claypot / pork belly, char siew and grilled duck platter"}]},
+    {name:"Pasar Pasir Putih",            address:"Sadai, Bengkong, Batam City, Riau Islands 29444",                   cuisine:"Indonesian", lat:1.1367911, lng:104.0448960,maps:"https://maps.google.com/?q=Pasar+Pasir+Putih+Sadai+Batam",                         recs:[{who:"Jefri Zhang",    dish:"Kwe cap (flat rice noodle soup)"}]},
+    {name:"Sushiro Kota Kasablanka",      address:"Kota Kasablanka, Jl. Raya Casablanca No.88, Jakarta Selatan 12870", cuisine:"Japanese",  lat:-6.2242458,lng:106.8422383,maps:"https://maps.google.com/?q=Sushiro+Kota+Kasablanka+Jakarta",                      recs:[{who:"Zakia Rahmasanti Karyono",dish:"Salmon with Cream Cheese & Basil"}]},
+    {name:"Es Nona Ayam Kremes 89",       address:"Jl. Dr. Ratna No.17, Jatikramat, Jatiasih, Bekasi 17421",          cuisine:"Indonesian", lat:-6.2738085,lng:106.9512993,maps:"https://maps.google.com/?q=Es+Nona+Ayam+Kremes+Jatiasih+Bekasi",                   recs:[{who:"Natasha Jane Marsela",dish:"Ayam kremes sambal geprek, tumis buncis dan pangsit goreng"},{who:"Natasha Jane Marsela",dish:"Es nona, tahu & tempe goreng"}]},
+    {name:"Rumah Aba Kopi Rajawali",      address:"Jl. Cendrawasih III No.28, 9 Ilir, Ilir Timur I, Palembang 30111", cuisine:"Indonesian", lat:-2.9706986,lng:104.7675096,maps:"https://maps.google.com/?q=Rumah+Aba+Kopi+Rajawali+Palembang",                    recs:[{who:"Nana",           dish:"Salted Egg Rice, Burnt Cheesecake, Pure Matcha"}]},
+  ],
+};
+
+// ── Office data ───────────────────────────────────────────────────────────────
+const OFFICES = {
+  sydney:    {lat:-33.8809983,lng:151.2095146, name:"R/GA Sydney",    address:"Level 3 & 4, 52 Reservoir St, Surry Hills NSW 2010"},
+  melbourne: {lat:-37.8269379,lng:144.9929609, name:"R/GA Melbourne", address:"19 Cubitt St, Cremorne VIC 3121"},
+};
+
+// ── City cuisine filters ──────────────────────────────────────────────────────
+const CITY_CUISINES = {
+  sydney: ['all','Chicken','Sandwiches','Japanese','Asian','Noodles','Mexican','Bakery','Pizza'],
+  melbourne: ['all','Bakery','Sandwiches','Japanese','Asian','Mexican'],
+  indonesia: ['all','Indonesian','Seafood','Noodles','Japanese'],
+};
+
+const CITY_LABELS = {sydney:'Surry Hills', melbourne:'Cremorne', indonesia:'Indonesia'};
+const CITY_VIEWS  = {sydney:[-33.882,151.210,15], melbourne:[-37.827,144.993,15], indonesia:[0,112,5]};
+
+// ── Map init ──────────────────────────────────────────────────────────────────
+const map = L.map('map',{zoomControl:true}).setView([-33.882,151.210],15);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+  attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19
+}).addTo(map);
+
+// ── Icon builders ─────────────────────────────────────────────────────────────
+// cuisine icon SVGs — each returns the inner artwork for a 28x28 viewBox
+const CUISINE_ICONS = {
+  Chicken: (c) => `
+    <line x1="18" y1="24" x2="10" y2="8" stroke="#f0ede0" stroke-width="2.5" stroke-linecap="round"/>
+    <ellipse cx="18.5" cy="23.5" rx="3.5" ry="3" fill="#e0d8c0" transform="rotate(30 18.5 23.5)"/>
+    <ellipse cx="10" cy="11" rx="7.5" ry="6.5" fill="#c45e30" transform="rotate(-30 10 11)"/>
+    <ellipse cx="10" cy="10" rx="6.5" ry="5.5" fill="${c}" transform="rotate(-30 10 10)"/>
+    <path d="M5 9 Q7 5 10 5 Q13 5 14 9" stroke="#c45e30" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.7"/>
+    <ellipse cx="8" cy="8" rx="2" ry="1.4" fill="white" opacity="0.22" transform="rotate(-30 8 8)"/>`,
+
+  Sandwiches: (c) => `
+    <ellipse cx="14" cy="8" rx="10" ry="5.5" fill="#d49030"/>
+    <ellipse cx="14" cy="7" rx="10" ry="5.5" fill="#f0b85a"/>
+    <ellipse cx="11" cy="5.5" rx="1.2" ry="0.8" fill="#c07820" transform="rotate(-20 11 5.5)"/>
+    <ellipse cx="15" cy="4.5" rx="1.2" ry="0.8" fill="#c07820" transform="rotate(10 15 4.5)"/>
+    <ellipse cx="18" cy="6" rx="1.2" ry="0.8" fill="#c07820" transform="rotate(-15 18 6)"/>
+    <path d="M4 14 Q7 11 10 13 Q14 11 18 13 Q21 11 24 13 Q24 15 4 15Z" fill="#5a9e4a"/>
+    <rect x="4" y="14" width="20" height="2.5" rx="1" fill="#c0442a"/>
+    <rect x="4" y="16.5" width="20" height="4" rx="2" fill="#f0b85a"/>`,
+
+  Japanese: (c) => `
+    <rect x="6" y="17" width="16" height="7" rx="2.5" fill="#f5f0e8"/>
+    <rect x="6" y="17" width="16" height="2.5" fill="#2a2a1a"/>
+    <ellipse cx="14" cy="14" rx="6.5" ry="4" fill="#c45e30"/>
+    <ellipse cx="14" cy="13" rx="5" ry="3" fill="${c}" opacity="0.9"/>
+    <ellipse cx="12" cy="12" rx="1.5" ry="1" fill="white" opacity="0.28"/>`,
+
+  Asian: (c) => `
+    <path d="M5 14 Q5 24 14 24 Q23 24 23 14Z" fill="#e8ddd0"/>
+    <path d="M5 14 Q5 22 14 22 Q23 22 23 14Z" fill="#d4c8b8"/>
+    <rect x="4" y="12" width="20" height="2.5" rx="1.2" fill="#c8bca8"/>
+    <line x1="9" y1="4" x2="12" y2="16" stroke="#8B6340" stroke-width="1.8" stroke-linecap="round"/>
+    <line x1="13" y1="3" x2="15.5" y2="16" stroke="#8B6340" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M7 16 Q9 14 11 16 Q13 18 15 16 Q17 14 19 16 Q21 18 22 16" stroke="${c}" stroke-width="1.8" fill="none" stroke-linecap="round"/>`,
+
+  Noodles: (c) => `
+    <ellipse cx="14" cy="18" rx="9" ry="6" fill="#f0e0a8"/>
+    <ellipse cx="14" cy="17" rx="9" ry="6" fill="#f5e8c0"/>
+    <path d="M8 15 Q11 12 14 14 Q17 12 20 15" stroke="#d4b870" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+    <path d="M10 13 Q12 11 14 12.5 Q16 11 18 13" stroke="#d4b870" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+    <ellipse cx="14" cy="11" rx="2.5" ry="1.6" fill="#d4b870"/>
+    <path d="M10 7 Q10.5 5.5 10 4" stroke="#bbb" stroke-width="1.3" fill="none" stroke-linecap="round" opacity="0.6"/>
+    <path d="M14 6 Q14.5 4.5 14 3" stroke="#bbb" stroke-width="1.3" fill="none" stroke-linecap="round" opacity="0.6"/>
+    <path d="M18 7 Q18.5 5.5 18 4" stroke="#bbb" stroke-width="1.3" fill="none" stroke-linecap="round" opacity="0.6"/>`,
+
+  Mexican: (c) => `
+    <path d="M4 19 Q4 9 14 9 Q24 9 24 19Z" fill="#d4a020"/>
+    <path d="M4 19 Q5 10 14 10 Q23 10 24 19Z" fill="${c}" opacity="0.85"/>
+    <path d="M6 19 Q8 16 11 17.5 Q14 16 17 17.5 Q20 16 22 19Z" fill="#5a9e4a"/>
+    <ellipse cx="14" cy="18.5" rx="5.5" ry="2.2" fill="#8B4513"/>
+    <circle cx="11.5" cy="18.5" r="1.5" fill="#e04040" opacity="0.85"/>
+    <circle cx="16.5" cy="18.5" r="1.5" fill="#e04040" opacity="0.85"/>
+    <rect x="9" y="16.5" width="2.5" height="0.8" rx="0.4" fill="#f0c840" transform="rotate(-20 9 16.5)"/>
+    <rect x="14" y="15.8" width="2.5" height="0.8" rx="0.4" fill="#f0c840" transform="rotate(10 14 15.8)"/>`,
+
+  Bakery: (c) => `
+    <rect x="2" y="15" width="24" height="10" rx="3" fill="#b85e10"/>
+    <rect x="4" y="17" width="20" height="6" rx="1.5" fill="#f5ead5"/>
+    <path d="M2 16 Q2 5 14 4 Q26 5 26 16Z" fill="#c87020"/>
+    <path d="M3.5 16 Q3.5 6.5 14 5.5 Q24.5 6.5 24.5 16Z" fill="#e09030"/>
+    <path d="M6 16 Q6 8.5 14 7.5 Q22 8.5 22 16Z" fill="${c}" opacity="0.75"/>
+    <rect x="4" y="15" width="20" height="2" rx="1" fill="#f5ead5" opacity="0.35"/>
+    <path d="M9 10 Q14 8 19 10" stroke="#b86818" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.55"/>
+    <path d="M7 13 Q14 11 21 13" stroke="#b86818" stroke-width="0.9" fill="none" stroke-linecap="round" opacity="0.38"/>`,
+
+  Pizza: (c) => `
+    <path d="M14 4 L4 24 L24 24Z" fill="#e8a030"/>
+    <path d="M14 4 L5 23 L23 23Z" fill="#f0b840"/>
+    <path d="M14 7 L6 22 L22 22Z" fill="#d44030"/>
+    <path d="M14 9 L8 21 L20 21Z" fill="${c}" opacity="0.85"/>
+    <path d="M4 24 Q14 27 24 24 L23 22 Q14 25 5 22Z" fill="#e8a030"/>
+    <circle cx="14" cy="15" r="2" fill="#c03020"/>
+    <circle cx="11" cy="19.5" r="1.6" fill="#c03020"/>
+    <circle cx="17" cy="19.5" r="1.6" fill="#c03020"/>`,
+
+  Seafood: (c) => `
+    <ellipse cx="13" cy="15" rx="9" ry="6" fill="#2a7ab5"/>
+    <ellipse cx="12.5" cy="15" rx="8" ry="5" fill="${c}"/>
+    <path d="M22 15 L27 11 L27 19Z" fill="#2a7ab5"/>
+    <path d="M10 12 Q12 10 14 12" stroke="#1a6090" stroke-width="0.9" fill="none"/>
+    <path d="M13 12 Q15 10 17 12" stroke="#1a6090" stroke-width="0.9" fill="none"/>
+    <path d="M9 15 Q11 13 13 15" stroke="#1a6090" stroke-width="0.9" fill="none"/>
+    <path d="M12 15 Q14 13 16 15" stroke="#1a6090" stroke-width="0.9" fill="none"/>
+    <circle cx="6" cy="14" r="1.8" fill="white"/>
+    <circle cx="6" cy="14" r="0.9" fill="#1a1a18"/>
+    <circle cx="5.6" cy="13.6" r="0.35" fill="white"/>
+    <path d="M10 10.5 Q14 8 18 10.5" stroke="${c}" stroke-width="1.8" fill="#4a9fd7" opacity="0.7"/>`,
+
+  Indonesian: (c) => `
+    <ellipse cx="14" cy="21" rx="9" ry="3.5" fill="#5a8a40"/>
+    <ellipse cx="14" cy="19.5" rx="7.5" ry="3" fill="#f5f0e0"/>
+    <path d="M8 19.5 Q14 7 20 19.5Z" fill="#f0ead8"/>
+    <path d="M9 19.5 Q14 9 19 19.5Z" fill="#f5f0e8"/>
+    <line x1="7.5" y1="25" x2="6" y2="13" stroke="#8B6340" stroke-width="1.8" stroke-linecap="round"/>
+    <ellipse cx="6.3" cy="12" rx="2.2" ry="1.7" fill="${c}" transform="rotate(-15 6.3 12)"/>
+    <line x1="11.5" y1="25" x2="10" y2="12" stroke="#8B6340" stroke-width="1.8" stroke-linecap="round"/>
+    <ellipse cx="10.3" cy="11" rx="2.2" ry="1.7" fill="${c}" transform="rotate(-10 10.3 11)"/>
+    <ellipse cx="19" cy="17.5" rx="2.5" ry="1.3" fill="#e04848" opacity="0.8"/>
+    <ellipse cx="21.5" cy="19" rx="1.8" ry="1.3" fill="#5a9e4a"/>`,
+};
+
+function cuisinePin(cuisine, color) {
+  const iconFn = CUISINE_ICONS[cuisine];
+  const inner = iconFn ? iconFn(color) : `<circle cx="14" cy="14" r="6" fill="white" opacity="0.9"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 36 46" style="display:block;filter:drop-shadow(0 2px 5px rgba(0,0,0,0.28))">
+    <path d="M18 0C9.16 0 2 7.16 2 16c0 12.25 16 30 16 30S34 28.25 34 16C34 7.16 26.84 0 18 0z" fill="${color}"/>
+    <circle cx="18" cy="16" r="13" fill="white" opacity="0.18"/>
+    <g transform="translate(4,2)">${inner}</g>
+  </svg>`;
+}
+const officeIconDef = L.divIcon({
+  html:'<div style="width:32px;height:32px;background:#1a1a18;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.25)">'
+    +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 10.5L12 3L21 10.5V21H15V15H9V21H3V10.5Z" fill="white"/></svg></div>',
+  className:'',iconSize:[32,32],iconAnchor:[16,16],popupAnchor:[0,-20]
+});
+
+// ── Popup builders ────────────────────────────────────────────────────────────
+function spotPopup(spot){
+  const recs = spot.recs.map(r=>{
+    const col=PERSON_COLORS[r.who]||'#888', init=INITIALS[r.who]||r.who.slice(0,2).toUpperCase();
+    return '<div class="rec-row"><div class="rec-avatar" style="background:'+col+'18;color:'+col+';border:1px solid '+col+'30">'+init+'</div>'
+      +'<div class="rec-info"><span class="rec-who">'+r.who+'</span><span class="rec-dish">'+r.dish+'</span></div></div>';
+  }).join('');
+  return '<div class="popup-inner"><div class="popup-header">'
+    +'<div class="popup-name">'+spot.name+'</div>'
+    +'<div class="popup-address">'+spot.address+'</div>'
+    +'<a class="popup-maps-link" href="'+spot.maps+'" target="_blank" rel="noopener">'
+    +'<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M3 13L13 3M13 3H6M13 3V10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    +'Open in Maps</a></div><div class="popup-recs">'+recs+'</div></div>';
+}
+function officePopup(o){
+  return '<div class="popup-inner"><div class="popup-office">'
+    +'<div class="office-sq"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 10.5L12 3L21 10.5V21H15V15H9V21H3V10.5Z" fill="white"/></svg></div>'
+    +'<div class="popup-office-text"><div class="popup-name">'+o.name+'</div>'
+    +'<div class="popup-address">'+o.address+'</div></div></div></div>';
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentCity='sydney', markers=[], officeMarker=null;
+
+function renderMarkers(activeCuisine){
+  markers.forEach(m=>map.removeLayer(m));
+  if(officeMarker){map.removeLayer(officeMarker);officeMarker=null;}
+  markers=[];
+
+  if(OFFICES[currentCity]){
+    const o=OFFICES[currentCity];
+    officeMarker=L.marker([o.lat,o.lng],{icon:officeIconDef,zIndexOffset:1000})
+      .addTo(map).bindPopup(officePopup(o),{maxWidth:300,className:''});
+  }
+
+  const spots=SPOTS[currentCity]||[];
+  let shown=0;
+  spots.forEach(spot=>{
+    if(activeCuisine!=='all' && spot.cuisine!==activeCuisine) return;
+    shown++;
+    const color=CUISINE_COLORS[spot.cuisine]||'#888';
+    const icon=L.divIcon({html:cuisinePin(spot.cuisine,color),className:'',iconSize:[36,46],iconAnchor:[18,46],popupAnchor:[0,-50]});
+    const m=L.marker([spot.lat,spot.lng],{icon})
+      .addTo(map).bindPopup(spotPopup(spot),{maxWidth:320,className:''});
+    markers.push(m);
+  });
+  document.getElementById('spot-count').textContent=shown+(shown===1?' spot':' spots');
+}
+
+function buildFilterBar(city){
+  const keys=CITY_CUISINES[city]||['all'];
+  const bar=document.getElementById('filter-bar');
+  bar.innerHTML='';
+  keys.forEach(key=>{
+    const btn=document.createElement('button');
+    btn.className='filter-btn'+(key==='all'?' active':'');
+    btn.onclick=function(){filterCuisine(key,this);};
+    const color=CUISINE_COLORS[key];
+    const label=key==='all'?'All':key==='Noodles'?'Noodles &amp; Dumplings':key;
+    btn.innerHTML=color?'<span class="dot" style="background:'+color+'"></span>'+label:label;
+    bar.appendChild(btn);
+  });
+}
+
+window.filterCuisine=function(cuisine,btn){
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderMarkers(cuisine);
+};
+
+window.switchCity=function(city,btn){
+  currentCity=city;
+  document.querySelectorAll('.city-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('city-label').textContent=CITY_LABELS[city];
+  const v=CITY_VIEWS[city];
+  map.setView([v[0],v[1]],v[2]);
+  buildFilterBar(city);
+  renderMarkers('all');
+};
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+buildFilterBar('sydney');
+renderMarkers('all');
+</script>
+</body>
+</html>
